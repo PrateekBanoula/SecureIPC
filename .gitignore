@@ -1,0 +1,17 @@
+# Compiled executables
+secureipc
+secureipc_client
+*.o
+
+# Temporary files
+*.tmp
+*.swp
+*.bak
+
+# Logs
+logs/*
+
+# Editor and OS files
+.vscode/
+.DS_Store
+Thumbs.db
