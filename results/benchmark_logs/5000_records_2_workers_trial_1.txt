@@ -1,0 +1,51 @@
+========== SERVER RESPONSE ==========
+SUCCESS: Dataset analysis started.
+
+========== SECURE IPC MANAGER ==========
+[Manager] Dataset records: 5000
+[Manager] Active workers: 2
+[Manager] Shared memory initialized.
+[Manager] Process-shared semaphore initialized.
+[Manager] Task 1: Records 1-2500
+[Manager] Task 2: Records 2501-5000
+
+[Manager] Creating workers...
+[Manager] Worker 1 created. PID: 39480
+[Manager] Worker 2 created. PID: 39481
+
+[Manager] Distributing tasks through pipes...
+
+[Manager] Waiting for workers...
+[Worker 2] Started. PID: 39481
+[Worker 2] Processing records 2501 to 5000
+[Worker 1] Started. PID: 39480
+[Worker 1] Processing records 1 to 2500
+[Worker 2] Stored result for Task 2.
+[Worker 1] Stored result for Task 1.
+[Manager] Task 1 completed by Worker 1.
+[Manager] Task 2 completed by Worker 2.
+
+[Manager] Checking failed tasks...
+
+========== WORKER RESULTS ==========
+Task 1: Count=2500, Sum=193037, Min=55, Max=100
+Task 2: Count=2500, Sum=194326, Min=55, Max=100
+
+========== TASK STATUS ==========
+Task 1 | Records 1-2500 | Status: COMPLETED | Retries: 0
+Task 2 | Records 2501-5000 | Status: COMPLETED | Retries: 0
+=================================
+
+====================================
+       FINAL DATASET REPORT
+====================================
+Tasks completed: 2/2
+Total records processed: 5000
+Total marks: 387363
+Average marks: 77.47
+Minimum marks: 55
+Maximum marks: 100
+====================================
+[Manager] Dataset analysis successful.
+[Performance] Analysis execution time: 1.554 ms
+SUCCESS: Dataset analysis completed.

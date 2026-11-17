@@ -88,13 +88,9 @@ int ipc_socket_server_create(void)
 
 int ipc_socket_accept_client(int server_fd)
 {
-    int client_fd;
+    int client_fd = accept(server_fd, NULL, NULL);
 
-    do {
-        client_fd = accept(server_fd, NULL, NULL);
-    } while (client_fd == -1 && errno == EINTR);
-
-    if (client_fd == -1)
+    if (client_fd == -1 && errno != EINTR)
         perror("accept");
 
     return client_fd;

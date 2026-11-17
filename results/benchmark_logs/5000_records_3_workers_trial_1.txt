@@ -1,0 +1,59 @@
+========== SERVER RESPONSE ==========
+SUCCESS: Dataset analysis started.
+
+========== SECURE IPC MANAGER ==========
+[Manager] Dataset records: 5000
+[Manager] Active workers: 3
+[Manager] Shared memory initialized.
+[Manager] Process-shared semaphore initialized.
+[Manager] Task 1: Records 1-1667
+[Manager] Task 2: Records 1668-3334
+[Manager] Task 3: Records 3335-5000
+
+[Manager] Creating workers...
+[Manager] Worker 1 created. PID: 39500
+[Manager] Worker 2 created. PID: 39501
+[Manager] Worker 3 created. PID: 39502
+
+[Manager] Distributing tasks through pipes...
+[Worker 1] Started. PID: 39500
+[Worker 1] Processing records 1 to 1667
+
+[Manager] Waiting for workers...
+[Worker 2] Started. PID: 39501
+[Worker 2] Processing records 1668 to 3334
+[Worker 3] Started. PID: 39502
+[Worker 3] Processing records 3335 to 5000
+[Worker 1] Stored result for Task 1.
+[Worker 2] Stored result for Task 2.
+[Worker 3] Stored result for Task 3.
+[Manager] Task 1 completed by Worker 1.
+[Manager] Task 2 completed by Worker 2.
+[Manager] Task 3 completed by Worker 3.
+
+[Manager] Checking failed tasks...
+
+========== WORKER RESULTS ==========
+Task 1: Count=1667, Sum=128512, Min=55, Max=100
+Task 2: Count=1667, Sum=129237, Min=55, Max=100
+Task 3: Count=1666, Sum=129614, Min=55, Max=100
+
+========== TASK STATUS ==========
+Task 1 | Records 1-1667 | Status: COMPLETED | Retries: 0
+Task 2 | Records 1668-3334 | Status: COMPLETED | Retries: 0
+Task 3 | Records 3335-5000 | Status: COMPLETED | Retries: 0
+=================================
+
+====================================
+       FINAL DATASET REPORT
+====================================
+Tasks completed: 3/3
+Total records processed: 5000
+Total marks: 387363
+Average marks: 77.47
+Minimum marks: 55
+Maximum marks: 100
+====================================
+[Manager] Dataset analysis successful.
+[Performance] Analysis execution time: 0.811 ms
+SUCCESS: Dataset analysis completed.

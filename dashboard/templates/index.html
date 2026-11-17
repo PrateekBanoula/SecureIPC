@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SecureIPC | Operations</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<div class="app-shell">
+
+    <aside class="sidebar">
+        <div class="brand">
+            <div class="brand-mark">S</div>
+            <div>
+                <div class="brand-name">SecureIPC</div>
+                <div class="brand-sub">SYSTEM OPERATIONS</div>
+            </div>
+        </div>
+
+        <div class="nav-label">WORKSPACE</div>
+        <a class="nav-item active" href="#overview"><span>◫</span> Overview</a>
+        <a class="nav-item" href="#workers"><span>▦</span> Workers</a>
+        <a class="nav-item" href="#history"><span>↺</span> Run history</a>
+
+        <div class="sidebar-bottom">
+            <div class="connection-label">MANAGER CONNECTION</div>
+            <div class="connection-status">
+                <span class="status-dot" id="sidebarDot"></span>
+                <span id="sidebarConnection">Checking connection</span>
+            </div>
+            <div class="sidebar-foot">Secure Inter-Process Communication</div>
+        </div>
+    </aside>
+
+    <main class="main-content" id="overview">
+        <header class="topbar">
+            <div>
+                <div class="eyebrow">OPERATIONS / OVERVIEW</div>
+                <h1>System overview</h1>
+                <p class="subtitle">Monitor processes, manage analysis and inspect execution results.</p>
+            </div>
+            <div class="top-status" id="connectionBadge">
+                <span class="status-dot"></span>
+                <span>Connecting</span>
+            </div>
+        </header>
+
+        <section class="metric-grid">
+            <article class="metric-card">
+                <div class="metric-top"><span>MANAGER STATUS</span><span class="metric-symbol">◉</span></div>
+                <div class="metric-value" id="managerStatus">Checking</div>
+                <div class="metric-note" id="managerNote">Waiting for response</div>
+            </article>
+            <article class="metric-card">
+                <div class="metric-top"><span>ANALYSIS RUNS</span><span class="metric-symbol">↗</span></div>
+                <div class="metric-value" id="runCount">0</div>
+                <div class="metric-note">Recorded executions</div>
+            </article>
+            <article class="metric-card">
+                <div class="metric-top"><span>LAST EXECUTION</span><span class="metric-symbol">◷</span></div>
+                <div class="metric-value compact" id="lastExecution">—</div>
+                <div class="metric-note" id="lastExecutionNote">No analysis yet</div>
+            </article>
+            <article class="metric-card">
+                <div class="metric-top"><span>WORKERS CONFIGURED</span><span class="metric-symbol">▦</span></div>
+                <div class="metric-value" id="workerCount">—</div>
+                <div class="metric-note">Parallel worker processes</div>
+            </article>
+        </section>
+
+        <section class="control-panel">
+            <div class="control-intro">
+                <div class="section-kicker">CONTROL CENTER</div>
+                <h2>Manager controls</h2>
+                <p>Configure the dataset and worker processes before analysis.</p>
+                <div class="active-config" id="activeConfig">
+                    Active configuration: loading...
+                </div>
+            </div>
+
+            <div class="control-options">
+                <label class="config-field">
+                    <span>DATASET</span>
+                    <select id="datasetSelect">
+                        <option value="data/dataset.csv">15 records</option>
+                        <option value="data/dataset_1000.csv">1,000 records</option>
+                        <option value="data/dataset_5000.csv">5,000 records</option>
+                        <option value="data/dataset_10000.csv">10,000 records</option>
+                    </select>
+                </label>
+
+                <label class="config-field">
+                    <span>WORKER PROCESSES</span>
+                    <select id="workersSelect">
+                        <option value="1">1 worker</option>
+                        <option value="2">2 workers</option>
+                        <option value="3">3 workers</option>
+                    </select>
+                </label>
+
+                <button class="btn btn-secondary" id="applyConfigBtn"
+                        onclick="applyConfiguration()">Apply configuration</button>
+
+                <div class="config-feedback" id="configFeedback" role="status">
+                    Configuration is managed by the SecureIPC manager.
+                </div>
+
+                <div class="control-actions">
+                    <button class="btn btn-secondary" id="statusBtn" onclick="checkStatus()">Check status</button>
+                    <button class="btn btn-primary" id="analyzeBtn" onclick="runAnalysis()">
+                        <span>▶</span> Run analysis
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <section class="results-section">
+            <div class="section-heading">
+                <div>
+                    <div class="section-kicker">LATEST EXECUTION</div>
+                    <h2>Analysis results</h2>
+                </div>
+                <span class="result-status" id="analysisStatus">NO RUN YET</span>
+            </div>
+
+            <div class="result-grid">
+                <article class="result-card">
+                    <div class="result-label">RECORDS PROCESSED</div>
+                    <div class="result-number" id="recordsProcessed">—</div>
+                    <div class="result-caption">Dataset size</div>
+                </article>
+                <article class="result-card">
+                    <div class="result-label">TOTAL MARKS</div>
+                    <div class="result-number" id="totalMarks">—</div>
+                    <div class="result-caption">Combined worker output</div>
+                </article>
+                <article class="result-card">
+                    <div class="result-label">AVERAGE MARKS</div>
+                    <div class="result-number" id="averageMarks">—</div>
+                    <div class="result-caption">Dataset average</div>
+                </article>
+                <article class="result-card">
+                    <div class="result-label">EXECUTION TIME</div>
+                    <div class="result-number" id="executionTime">—</div>
+                    <div class="result-caption">Analysis duration</div>
+                </article>
+            </div>
+        </section>
+
+        <section class="workers-section" id="workers">
+            <div class="section-heading">
+                <div>
+                    <div class="section-kicker">PROCESS MANAGEMENT</div>
+                    <h2>Worker processes</h2>
+                    <p class="section-description">Individual workers and their assigned record ranges.</p>
+                </div>
+                <span class="small-count" id="workerSummary">0 WORKERS</span>
+            </div>
+            <div class="worker-grid" id="workerGrid">
+                <div class="empty-state">Run an analysis to view worker details.</div>
+            </div>
+        </section>
+
+        <section class="tasks-section">
+            <div class="section-heading">
+                <div>
+                    <div class="section-kicker">TASK SCHEDULING</div>
+                    <h2>Task distribution</h2>
+                </div>
+                <span class="small-count" id="taskSummary">0 TASKS</span>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>TASK</th>
+                            <th>RECORD RANGE</th>
+                            <th>RECORD COUNT</th>
+                            <th>WORKER</th>
+                            <th>STATUS</th>
+                        </tr>
+                    </thead>
+                    <tbody id="taskTable">
+                        <tr><td colspan="5" class="empty-cell">No task data available.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <section class="logs-section">
+            <details id="logDetails">
+                <summary>
+                    <div>
+                        <div class="section-kicker">DEBUG OUTPUT</div>
+                        <h2>Execution logs</h2>
+                    </div>
+                    <span class="expand-label">EXPAND LOGS ＋</span>
+                </summary>
+                <pre id="output">No execution logs available.</pre>
+            </details>
+        </section>
+
+        <section class="history-section" id="history">
+            <div class="section-heading">
+                <div>
+                    <div class="section-kicker">PAST EXECUTIONS</div>
+                    <h2>Analysis history</h2>
+                </div>
+                <span class="small-count">LATEST 10 RUNS</span>
+            </div>
+            <div class="history-list" id="historyList">
+                <div class="empty-state">No analysis history yet.</div>
+            </div>
+        </section>
+
+        <footer>
+            <span>SECUREIPC · OPERATING SYSTEMS PROJECT</span>
+            <span>LOCAL MANAGER INTERFACE</span>
+        </footer>
+    </main>
+</div>
+<script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

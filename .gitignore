@@ -15,3 +15,13 @@ logs/*
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Backup files
+*.backup
+*.phase3-backup
+*.before-runtime-config
+*.runtime-config-backup

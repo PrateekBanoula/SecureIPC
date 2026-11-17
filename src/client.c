@@ -10,14 +10,16 @@
 int main(int argc, char *argv[])
 {
     if (argc != 2) {
-        printf("Usage: ./secureipc_client STATUS|ANALYZE|SHUTDOWN\n");
+        printf("Usage: ./secureipc_client STATUS|ANALYZE|GETCONFIG|CONFIG <dataset> <workers>|SHUTDOWN\\n");
         return 1;
     }
 
     if (strcmp(argv[1], "STATUS") != 0 &&
         strcmp(argv[1], "ANALYZE") != 0 &&
-        strcmp(argv[1], "SHUTDOWN") != 0) {
-        printf("Invalid command.\n");
+        strcmp(argv[1], "GETCONFIG") != 0 &&
+        strcmp(argv[1], "SHUTDOWN") != 0 &&
+        strncmp(argv[1], "CONFIG ", 7) != 0) {
+        printf("Invalid command.\\n");
         return 1;
     }
 

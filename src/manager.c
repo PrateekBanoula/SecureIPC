@@ -9,7 +9,8 @@
 #include <sys/wait.h>
 #include <errno.h>
 #include <signal.h>
-
+#include <time.h>
+#include <stdint.h>
 #include "worker.h"
 #include "task_manager.h"
 #include "shared_memory.h"
@@ -18,6 +19,57 @@
 #define WORKER_COUNT 3
 #define DATASET_FILE "data/dataset.csv"
 #define MAX_RETRIES 1
+
+static char active_dataset[64] = DATASET_FILE;
+static int configured_worker_count = WORKER_COUNT;
+
+static int dataset_is_allowed(const char *path)
+{
+    return strcmp(path, "data/dataset.csv") == 0 ||
+           strcmp(path, "data/dataset_1000.csv") == 0 ||
+           strcmp(path, "data/dataset_5000.csv") == 0 ||
+           strcmp(path, "data/dataset_10000.csv") == 0;
+}
+
+const char *get_dataset_file(void)
+{
+    return active_dataset;
+}
+
+static int initialize_runtime_config(void)
+{
+    const char *dataset_env = getenv("SECUREIPC_DATASET");
+    const char *workers_env = getenv("SECUREIPC_WORKERS");
+
+    if (dataset_env != NULL && dataset_env[0] != '\0') {
+        if (!dataset_is_allowed(dataset_env) ||
+            access(dataset_env, R_OK) != 0) {
+            fprintf(stderr, "[Manager] Invalid or unreadable SECUREIPC_DATASET.\n");
+            return -1;
+        }
+
+        snprintf(active_dataset, sizeof(active_dataset), "%s", dataset_env);
+    }
+
+    if (workers_env != NULL) {
+        char *endptr;
+        long value = strtol(workers_env, &endptr, 10);
+
+        if (workers_env[0] == '\0' || *endptr != '\0' ||
+            value < 1 || value > WORKER_COUNT) {
+            fprintf(stderr,
+                    "[Manager] SECUREIPC_WORKERS must be between 1 and %d.\n",
+                    WORKER_COUNT);
+            return -1;
+        }
+
+        configured_worker_count = (int)value;
+    }
+
+    printf("[Manager] Initial dataset: %s\n", active_dataset);
+    printf("[Manager] Configured workers: %d\n", configured_worker_count);
+    return 0;
+}
 
 typedef struct {
     pid_t pid;
@@ -29,7 +81,7 @@ typedef struct {
 } WorkerProcess;
 
 
-/* Initialize worker information. */
+
 void init_worker(WorkerProcess *worker) {
     worker->pid = -1;
     worker->task_pipe[0] = -1;
@@ -40,7 +92,7 @@ void init_worker(WorkerProcess *worker) {
 }
 
 
-/* Write complete data to a pipe. */
+
 int write_all(int fd, const void *buffer, size_t size) {
     const char *ptr = buffer;
     size_t total = 0;
@@ -64,7 +116,7 @@ int write_all(int fd, const void *buffer, size_t size) {
 }
 
 
-/* Count CSV records using dynamically allocated line storage. */
+
 int count_dataset_records(
     const char *filename,
     size_t *count
@@ -102,7 +154,7 @@ int count_dataset_records(
 }
 
 
-/* Close a worker's pipe descriptors. */
+
 void close_worker(WorkerProcess *worker) {
     if (worker->task_pipe[0] != -1)
         close(worker->task_pipe[0]);
@@ -115,7 +167,7 @@ void close_worker(WorkerProcess *worker) {
 }
 
 
-/* Create a worker process. */
+
 int spawn_worker(
     WorkerProcess workers[],
     int worker_count,
@@ -163,7 +215,7 @@ int spawn_worker(
 
         close(worker->task_pipe[0]);
 
-        /* Controlled crash simulation for testing recovery. */
+       
         const char *crash_task = getenv("SECUREIPC_CRASH_TASK");
 
         if (crash_task &&
@@ -184,12 +236,12 @@ int spawn_worker(
         fflush(stdout);
 
         int result = worker_execute(
-            DATASET_FILE,
+            get_dataset_file(),
             received_task,
             &stats
         );
 
-        /* Store the result in shared memory. */
+        
         if (shared_memory_store(
                 shared,
                 received_task.task_id,
@@ -208,7 +260,7 @@ int spawn_worker(
         _exit(result == 0 ? 0 : 1);
     }
 
-    /* Parent process. */
+    
     worker->pid = pid;
     worker->started = 1;
 
@@ -219,7 +271,7 @@ int spawn_worker(
 }
 
 
-/* Send a task to a worker. */
+
 int send_task(WorkerProcess *worker) {
     int result = write_all(
         worker->task_pipe[1],
@@ -234,7 +286,7 @@ int send_task(WorkerProcess *worker) {
 }
 
 
-/* Wait for a worker and collect its termination status. */
+
 int wait_for_worker(WorkerProcess *worker) {
     if (!worker->started)
         return -1;
@@ -257,7 +309,7 @@ int wait_for_worker(WorkerProcess *worker) {
 }
 
 
-/* Verify process termination and shared-memory result. */
+
 int worker_succeeded(
     const WorkerProcess *worker,
     const SharedResult *result
@@ -272,7 +324,7 @@ int worker_succeeded(
 }
 
 
-/* Execute a failed task using a replacement worker. */
+
 int retry_task(
     WorkerTask *task,
     int new_worker_id,
@@ -334,31 +386,35 @@ int retry_task(
 
 
 static int run_dataset_analysis(void) {
+    struct timespec start_time, end_time;
+    clock_gettime(CLOCK_MONOTONIC, &start_time);
     signal(SIGPIPE, SIG_IGN);
 
     printf("\n========== SECURE IPC MANAGER ==========\n");
 
-    /* 1. Count dataset records. */
+    
     size_t total_records;
+    const char *dataset_file = get_dataset_file();
 
     if (count_dataset_records(
-            DATASET_FILE,
+            dataset_file,
             &total_records
         ) != 0 || total_records == 0) {
         printf("[Manager] Dataset is empty or invalid.\n");
         return 1;
     }
-
     printf("[Manager] Dataset records: %zu\n", total_records);
 
-    /* 2. Determine active workers. */
-    int active_workers = total_records < WORKER_COUNT
-                       ? (int)total_records
-                       : WORKER_COUNT;
+    
+    int requested_workers = configured_worker_count;
+
+    int active_workers = total_records < (size_t)requested_workers
+                    ? (int)total_records
+                    : requested_workers;
 
     printf("[Manager] Active workers: %d\n", active_workers);
 
-    /* 3. Create shared memory and semaphore. */
+    
     char shm_name[64];
     int shm_fd = -1;
 
@@ -371,7 +427,7 @@ static int run_dataset_analysis(void) {
     if (!shared)
         return 1;
 
-    /* 4. Distribute dataset records dynamically. */
+    
     WorkerTask tasks[WORKER_COUNT];
 
     size_t base = total_records / (size_t)active_workers;
@@ -407,7 +463,7 @@ static int run_dataset_analysis(void) {
                tasks[i].end_record);
     }
 
-    /* 5. Initialize workers. */
+    
     WorkerProcess workers[WORKER_COUNT];
 
     for (int i = 0; i < WORKER_COUNT; i++)
@@ -438,7 +494,7 @@ static int run_dataset_analysis(void) {
                i + 1, workers[i].pid);
     }
 
-    /* 7. Distribute tasks through pipes. */
+    
     printf("\n[Manager] Distributing tasks through pipes...\n");
 
     for (int i = 0; i < active_workers; i++) {
@@ -451,7 +507,7 @@ static int run_dataset_analysis(void) {
     DatasetStats final_results[WORKER_COUNT];
     int task_completed[WORKER_COUNT] = {0};
 
-    /* 8. Wait for workers and read shared-memory results. */
+   
     printf("\n[Manager] Waiting for workers...\n");
 
     for (int i = 0; i < active_workers; i++) {
@@ -497,7 +553,7 @@ static int run_dataset_analysis(void) {
         close_worker(&workers[i]);
     }
 
-    /* 9. Retry failed tasks. */
+    
     printf("\n[Manager] Checking failed tasks...\n");
 
     for (int i = 0; i < active_workers; i++) {
@@ -541,7 +597,7 @@ static int run_dataset_analysis(void) {
         }
     }
 
-    /* 10. Aggregate valid results. */
+    
     long total_count = 0;
     long long total_sum = 0;
 
@@ -585,7 +641,7 @@ static int run_dataset_analysis(void) {
 
     task_manager_display(&task_manager);
 
-    /* 11. Final report. */
+   
     printf("\n====================================\n");
     printf("       FINAL DATASET REPORT\n");
     printf("====================================\n");
@@ -614,13 +670,102 @@ static int run_dataset_analysis(void) {
     /* 12. Clean up shared resources. */
     shared_memory_destroy(shared, shm_fd, shm_name);
 
+    clock_gettime(CLOCK_MONOTONIC, &end_time);
+
+    double execution_time =
+        (end_time.tv_sec - start_time.tv_sec) * 1000.0 +
+        (end_time.tv_nsec - start_time.tv_nsec) / 1000000.0;
+
+    printf("[Performance] Analysis execution time: %.3f ms\n",
+           execution_time);
+
     return completed_count == active_workers ? 0 : 1;
 }
 
 
-/* Unix Domain Socket server: handles one client at a time. */
+
+
+/* Capture analysis output, including output from child workers. */
+static int run_dataset_analysis_capture(char **output)
+{
+    *output = NULL;
+
+    FILE *capture = tmpfile();
+    if (!capture) return -1;
+
+    fflush(stdout);
+    int saved_stdout = dup(STDOUT_FILENO);
+    if (saved_stdout == -1) {
+        fclose(capture);
+        return -1;
+    }
+
+    if (dup2(fileno(capture), STDOUT_FILENO) == -1) {
+        close(saved_stdout);
+        fclose(capture);
+        return -1;
+    }
+
+    int result = run_dataset_analysis();
+    fflush(stdout);
+
+    if (dup2(saved_stdout, STDOUT_FILENO) == -1) {
+        close(saved_stdout);
+        fclose(capture);
+        return -1;
+    }
+
+    close(saved_stdout);
+    rewind(capture);
+
+    size_t capacity = 8192, used = 0;
+    char *buffer = malloc(capacity);
+    if (!buffer) {
+        fclose(capture);
+        return -1;
+    }
+
+    while (1) {
+        if (capacity - used <= 1) {
+            if (capacity > SIZE_MAX / 2) {
+                free(buffer);
+                fclose(capture);
+                return -1;
+            }
+            capacity *= 2;
+            char *expanded = realloc(buffer, capacity);
+            if (!expanded) {
+                free(buffer);
+                fclose(capture);
+                return -1;
+            }
+            buffer = expanded;
+        }
+
+        size_t n = fread(buffer + used, 1, capacity - used - 1, capture);
+        used += n;
+
+        if (n == 0) {
+            if (ferror(capture)) {
+                free(buffer);
+                fclose(capture);
+                return -1;
+            }
+            break;
+        }
+    }
+
+    buffer[used] = '\0';
+    fclose(capture);
+    *output = buffer;
+    return result;
+}
+
 int main(void)
 {
+    if (initialize_runtime_config() != 0)
+        return 1;
+
     signal(SIGPIPE, SIG_IGN);
 
     printf("\n========== SECURE IPC SOCKET SERVER ==========\n");
@@ -674,7 +819,58 @@ int main(void)
 
         printf("[Manager] Received request: %s\n", request);
 
-        if (strcmp(request, "STATUS") == 0) {
+        if (strcmp(request, "GETCONFIG") == 0) {
+            char response[IPC_REQUEST_SIZE];
+
+            snprintf(response, sizeof(response),
+                     "CONFIG %.63s %d\n",
+                     active_dataset, configured_worker_count);
+
+            ipc_socket_send_response(client_fd, response);
+        }
+        else if (strncmp(request, "CONFIG ", 7) == 0) {
+            char dataset[64];
+            char extra;
+            int workers;
+
+            int parsed = sscanf(request, "CONFIG %63s %d %c",
+                                dataset, &workers, &extra);
+
+            if (parsed != 2) {
+                ipc_socket_send_response(
+                    client_fd,
+                    "ERROR: Invalid configuration format.\n"
+                );
+            }
+            else if (!dataset_is_allowed(dataset) ||
+                     access(dataset, R_OK) != 0) {
+                ipc_socket_send_response(
+                    client_fd,
+                    "ERROR: Dataset is not allowed or cannot be read.\n"
+                );
+            }
+            else if (workers < 1 || workers > WORKER_COUNT) {
+                ipc_socket_send_response(
+                    client_fd,
+                    "ERROR: Worker count must be between 1 and 3.\n"
+                );
+            }
+            else {
+                snprintf(active_dataset, sizeof(active_dataset), "%s", dataset);
+                configured_worker_count = workers;
+
+                char response[IPC_REQUEST_SIZE];
+                snprintf(response, sizeof(response),
+                         "SUCCESS: Configuration updated. Dataset=%.40s Workers=%d\n",
+                         active_dataset, configured_worker_count);
+
+                printf("[Manager] Runtime configuration updated: %s, %d workers\n",
+                       active_dataset, configured_worker_count);
+
+                ipc_socket_send_response(client_fd, response);
+            }
+        }
+        else if (strcmp(request, "STATUS") == 0) {
             ipc_socket_send_response(
                 client_fd,
                 "SUCCESS: SecureIPC manager is running.\n"
@@ -688,7 +884,13 @@ int main(void)
 
             printf("\n[Manager] Processing ANALYZE request...\n");
 
-            int result = run_dataset_analysis();
+            char *analysis_output = NULL;
+            int result = run_dataset_analysis_capture(&analysis_output);
+
+            if (analysis_output != NULL) {
+                ipc_socket_send_response(client_fd, analysis_output);
+                free(analysis_output);
+            }
 
             if (result == 0) {
                 ipc_socket_send_response(
